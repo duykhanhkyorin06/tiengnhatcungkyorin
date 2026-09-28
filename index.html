@@ -114,6 +114,9 @@
         <button id="tab-learn" onclick="switchTab('learn')" class="flex-1 py-3 px-6 rounded-xl font-bold text-base transition-all bg-pink-400 text-white shadow-md shadow-pink-200">
             🌸 Học Từ Vựng
         </button>
+        <button id="tab-quiz" onclick="switchTab('quiz')" class="flex-1 py-3 px-6 rounded-xl font-bold text-base transition-all text-slate-500 hover:text-pink-500 hover:bg-pink-50">
+            🧠 Kiểm Tra
+        </button>
         <button id="tab-import" onclick="switchTab('import')" class="flex-1 py-3 px-6 rounded-xl font-bold text-base transition-all text-slate-500 hover:text-pink-500 hover:bg-pink-50">
             ✨ Thêm Bài Học
         </button>
@@ -137,7 +140,11 @@
                 </div>
                 
                 <div class="flex items-center gap-2">
+                    <div class="text-xs font-bold text-emerald-500 bg-emerald-50 px-3 py-3 rounded-2xl border-2 border-emerald-100" id="stats-text" title="Đã thuộc / Chưa thuộc">✅0 ❌0</div>
                     <div class="text-xs font-bold text-pink-500 bg-pink-50 px-3 py-3 rounded-2xl border-2 border-pink-100" id="progress-text">0/0</div>
+                    <button id="filter-btn" onclick="toggleFilter()" class="p-3 bg-amber-50 text-amber-500 hover:bg-amber-100 rounded-2xl font-bold transition-all border-2 border-amber-100" title="Chỉ ôn từ chưa thuộc">
+                        🎯
+                    </button>
                     <button onclick="shuffleCards()" class="p-3 bg-sky-50 text-sky-500 hover:bg-sky-100 rounded-2xl font-bold transition-all border-2 border-sky-100 flex items-center gap-1" title="Trộn thẻ">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -148,6 +155,7 @@
 
             <!-- Thẻ Flashcard 3D -->
             <div class="perspective-card w-full h-[24rem] mb-6 no-select">
+                <div id="status-badge" class="absolute -top-3 -right-3 z-30 text-xl bg-white rounded-full w-9 h-9 flex items-center justify-center shadow-md border-2 border-slate-100">⬜</div>
                 <div class="flashcard w-full h-full cursor-pointer" id="flashcard" onclick="flipCard()">
                     <div class="card-inner w-full h-full">
                         <!-- Mặt trước -->
@@ -199,14 +207,36 @@
                     Tiếp theo ▶
                 </button>
             </div>
+
+            <!-- Nút đánh dấu đã thuộc / chưa thuộc -->
+            <div class="grid grid-cols-2 gap-4 mt-4">
+                <button onclick="markCard(false)" class="py-3 px-6 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-2xl font-bold text-base shadow-sm border-2 border-rose-100 transition-all active:scale-95">
+                    ❌ Chưa thuộc
+                </button>
+                <button onclick="markCard(true)" class="py-3 px-6 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-2xl font-bold text-base shadow-sm border-2 border-emerald-100 transition-all active:scale-95">
+                    ✅ Đã thuộc
+                </button>
+            </div>
+        </div>
+
+        <!-- Giao diện Kiểm Tra -->
+        <div id="view-quiz" class="hidden">
+            <div id="quiz-container" class="bg-white/90 backdrop-blur-md p-6 rounded-3xl shadow-sm border border-pink-100 text-center min-h-[20rem] flex flex-col items-center justify-center"></div>
         </div>
 
         <!-- Giao diện Thêm Bài học -->
         <div id="view-import" class="hidden">
             <div class="bg-white/90 backdrop-blur-md p-6 sm:p-8 rounded-3xl shadow-sm border border-pink-100">
-                <div class="flex items-center gap-3 mb-2">
-                    <span class="text-2xl">✨</span>
-                    <h2 class="text-2xl font-extrabold text-slate-700">Tạo Bài Học Mới</h2>
+                <div class="flex items-center justify-between mb-2 gap-2">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">✨</span>
+                        <h2 class="text-2xl font-extrabold text-slate-700">Tạo Bài Học Mới</h2>
+                    </div>
+                    <div class="flex gap-2 flex-shrink-0">
+                        <button onclick="exportLessons()" title="Xuất file sao lưu" class="p-2.5 bg-sky-50 text-sky-500 hover:bg-sky-100 rounded-xl border-2 border-sky-100 font-bold text-sm">📤</button>
+                        <button onclick="document.getElementById('import-file-input').click()" title="Nhập file sao lưu" class="p-2.5 bg-emerald-50 text-emerald-500 hover:bg-emerald-100 rounded-xl border-2 border-emerald-100 font-bold text-sm">📥</button>
+                        <input type="file" id="import-file-input" accept=".json" class="hidden" onchange="importLessons(event)">
+                    </div>
                 </div>
                 <p class="text-slate-500 mb-6 text-sm">Dán danh sách từ vựng của bạn vào ô bên dưới để tự động tạo bộ thẻ học.</p>
                 
@@ -275,6 +305,8 @@
         let currentIndex = 0;
         let isFlipped = false;
         let lessonToDelete = "";
+        let filterUnknownOnly = false;
+        let currentLessonName = "";
 
         function initApp() {
             loadLessons();
@@ -325,6 +357,8 @@
             document.getElementById('card-kanji').textContent = "";
             document.getElementById('card-vn').textContent = "Hãy thêm bài học mới!";
             document.getElementById('progress-text').textContent = "0/0";
+            document.getElementById('status-badge').textContent = "⬜";
+            updateStats();
         }
 
         function changeLesson() {
@@ -334,14 +368,70 @@
 
         function loadCardsForLesson(lessonName) {
             if (!allLessons[lessonName]) return;
-            currentLessonData = [...allLessons[lessonName]];
+            currentLessonName = lessonName;
+            applyFilter();
             currentIndex = 0;
             if (isFlipped) flipCard(true);
             renderCard();
         }
 
-        function renderCard() {
+        function applyFilter() {
+            const source = allLessons[currentLessonName] || [];
+            currentLessonData = filterUnknownOnly
+                ? source.filter(c => c.status !== 'known')
+                : [...source];
+            if (currentIndex >= currentLessonData.length) currentIndex = 0;
+        }
+
+        function toggleFilter() {
+            filterUnknownOnly = !filterUnknownOnly;
+            const btn = document.getElementById('filter-btn');
+            btn.classList.toggle('bg-amber-400', filterUnknownOnly);
+            btn.classList.toggle('text-white', filterUnknownOnly);
+            applyFilter();
+            currentIndex = 0;
+            if (isFlipped) flipCard(true);
+            if (currentLessonData.length === 0) {
+                showToast(filterUnknownOnly ? "🎉 Không còn từ nào cần ôn!" : "Đã tắt bộ lọc");
+            }
+            renderCard();
+        }
+
+        function markCard(isKnown) {
             if (currentLessonData.length === 0) return;
+            const card = currentLessonData[currentIndex];
+            card.status = isKnown ? 'known' : 'unknown';
+            saveLessons();
+            updateStats();
+            showToast(isKnown ? "✅ Đã đánh dấu thuộc!" : "❌ Đã đánh dấu chưa thuộc, ôn lại sau nhé!");
+
+            if (filterUnknownOnly) {
+                applyFilter();
+                if (currentIndex >= currentLessonData.length) currentIndex = 0;
+                if (currentLessonData.length === 0) { showToast("🎉 Không còn từ nào cần ôn!"); }
+                if (isFlipped) flipCard(true);
+                renderCard();
+            } else {
+                setTimeout(() => nextCard(), 200);
+            }
+        }
+
+        function updateStatusBadge(card) {
+            const badge = document.getElementById('status-badge');
+            if (!card || !card.status) { badge.textContent = '⬜'; }
+            else if (card.status === 'known') { badge.textContent = '✅'; }
+            else { badge.textContent = '❌'; }
+        }
+
+        function updateStats() {
+            const source = allLessons[currentLessonName] || [];
+            const known = source.filter(c => c.status === 'known').length;
+            const unknown = source.filter(c => c.status === 'unknown').length;
+            document.getElementById('stats-text').textContent = `✅${known} ❌${unknown}`;
+        }
+
+        function renderCard() {
+            if (currentLessonData.length === 0) { emptyState(); return; }
             const card = currentLessonData[currentIndex];
             if (isFlipped) {
                 flipCard(true);
@@ -356,6 +446,8 @@
             document.getElementById('card-kanji').textContent = (card.kanji && card.jp && card.kanji !== card.jp) ? `(${card.kanji})` : '';
             document.getElementById('card-vn').textContent = card.vn || '';
             document.getElementById('progress-text').textContent = `${currentIndex + 1}/${currentLessonData.length}`;
+            updateStatusBadge(card);
+            updateStats();
         }
 
         function flipCard(instant = false) {
@@ -517,22 +609,162 @@
         }
 
         function switchTab(tab) {
-            const viewLearn = document.getElementById('view-learn');
-            const viewImport = document.getElementById('view-import');
-            const btnLearn = document.getElementById('tab-learn');
-            const btnImport = document.getElementById('tab-import');
+            const views = { learn: 'view-learn', quiz: 'view-quiz', import: 'view-import' };
+            const btns = { learn: 'tab-learn', quiz: 'tab-quiz', import: 'tab-import' };
+            Object.keys(views).forEach(k => {
+                document.getElementById(views[k]).classList.toggle('hidden', k !== tab);
+                document.getElementById(btns[k]).className = k === tab
+                    ? "flex-1 py-3 px-6 rounded-xl font-bold text-base transition-all bg-pink-400 text-white shadow-md shadow-pink-200"
+                    : "flex-1 py-3 px-6 rounded-xl font-bold text-base transition-all text-slate-500 hover:text-pink-500 hover:bg-pink-50";
+            });
+            if (tab === 'quiz') renderQuizStart();
+        }
 
-            if (tab === 'learn') {
-                viewLearn.classList.remove('hidden');
-                viewImport.classList.add('hidden');
-                btnLearn.className = "flex-1 py-3 px-6 rounded-xl font-bold text-base transition-all bg-pink-400 text-white shadow-md shadow-pink-200";
-                btnImport.className = "flex-1 py-3 px-6 rounded-xl font-bold text-base transition-all text-slate-500 hover:text-pink-500 hover:bg-pink-50";
-            } else {
-                viewLearn.classList.add('hidden');
-                viewImport.classList.remove('hidden');
-                btnImport.className = "flex-1 py-3 px-6 rounded-xl font-bold text-base transition-all bg-pink-400 text-white shadow-md shadow-pink-200";
-                btnLearn.className = "flex-1 py-3 px-6 rounded-xl font-bold text-base transition-all text-slate-500 hover:text-pink-500 hover:bg-pink-50";
+        /* ---------- Xuất / Nhập file sao lưu ---------- */
+        async function exportLessons() {
+            const data = JSON.stringify(allLessons, null, 2);
+            try {
+                if (window.claude && window.claude.use) {
+                    const downloads = await window.claude.use("downloads");
+                    if (downloads) {
+                        await downloads.save({ filename: 'flashcards-backup.json', data });
+                        showToast("Đã tải file sao lưu! 💾");
+                        return;
+                    }
+                }
+            } catch (e) { /* fall through to browser download */ }
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'flashcards-backup.json'; a.click();
+            URL.revokeObjectURL(url);
+            showToast("Đã tải file sao lưu! 💾");
+        }
+
+        function importLessons(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    Object.assign(allLessons, imported);
+                    saveLessons();
+                    populateLessonDropdown();
+                    initApp();
+                    showToast(`Đã nhập ${Object.keys(imported).length} bài học! 📥`);
+                } catch (err) {
+                    showToast("File không hợp lệ!", true);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        /* ---------- Kiểm tra trắc nghiệm ---------- */
+        let quizQuestions = [], quizIndex = 0, quizScore = 0;
+        let quizLessonName = "", quizScope = "single", quizStatusFilter = "all";
+
+        function renderQuizStart() {
+            const keys = Object.keys(allLessons);
+            const box = document.getElementById('quiz-container');
+            if (!quizLessonName || !allLessons[quizLessonName]) quizLessonName = keys[0] || "";
+            if (keys.length === 0) {
+                box.innerHTML = `<p class="text-slate-500 font-bold">Chưa có bài học nào, hãy thêm bài học trước nhé!</p>`;
+                return;
             }
+            box.innerHTML = `
+                <h3 class="text-xl font-extrabold text-slate-700 mb-4">🧠 Kiểm tra từ vựng</h3>
+                <select id="quiz-scope-select" onchange="onQuizScopeChange()" class="w-full bg-pink-50/70 border-2 border-pink-100 text-slate-700 rounded-2xl p-3 outline-none font-bold mb-3">
+                    <option value="single" ${quizScope === 'single' ? 'selected' : ''}>📖 Một bài học cụ thể</option>
+                    <option value="all" ${quizScope === 'all' ? 'selected' : ''}>📚 Tất cả các bài học</option>
+                </select>
+                <select id="quiz-lesson-select" class="w-full bg-pink-50/70 border-2 border-pink-100 text-slate-700 rounded-2xl p-3 outline-none font-bold mb-3 ${quizScope === 'all' ? 'hidden' : ''}">
+                    ${keys.map(k => `<option value="${k}" ${k === quizLessonName ? 'selected' : ''}>${k}</option>`).join('')}
+                </select>
+                <select id="quiz-status-select" class="w-full bg-sky-50/70 border-2 border-sky-100 text-slate-700 rounded-2xl p-3 outline-none font-bold mb-5">
+                    <option value="all" ${quizStatusFilter === 'all' ? 'selected' : ''}>🔤 Tất cả các từ</option>
+                    <option value="unknown" ${quizStatusFilter === 'unknown' ? 'selected' : ''}>❌ Chỉ từ chưa thuộc</option>
+                    <option value="known" ${quizStatusFilter === 'known' ? 'selected' : ''}>✅ Chỉ từ đã thuộc</option>
+                </select>
+                <button onclick="startQuiz()" class="py-3 px-8 bg-pink-400 hover:bg-pink-500 text-white rounded-2xl font-extrabold shadow-md shadow-pink-200 active:scale-95 transition-all">🚀 Bắt đầu kiểm tra</button>`;
+        }
+
+        function onQuizScopeChange() {
+            quizScope = document.getElementById('quiz-scope-select').value;
+            document.getElementById('quiz-lesson-select').classList.toggle('hidden', quizScope === 'all');
+        }
+
+        function startQuiz() {
+            const scopeSel = document.getElementById('quiz-scope-select');
+            const lessonSel = document.getElementById('quiz-lesson-select');
+            const statusSel = document.getElementById('quiz-status-select');
+            if (scopeSel) quizScope = scopeSel.value;
+            if (lessonSel) quizLessonName = lessonSel.value;
+            if (statusSel) quizStatusFilter = statusSel.value;
+
+            let source = quizScope === 'all'
+                ? [].concat(...Object.values(allLessons))
+                : (allLessons[quizLessonName] || []);
+            if (quizStatusFilter === 'unknown') source = source.filter(c => c.status !== 'known');
+            else if (quizStatusFilter === 'known') source = source.filter(c => c.status === 'known');
+
+            if (source.length < 2) {
+                showToast("Không đủ từ phù hợp để kiểm tra (cần ít nhất 2 từ)!", true);
+                return;
+            }
+            const pool = [].concat(...Object.values(allLessons)).map(c => c.vn).filter(Boolean);
+            const shuffled = [...source].sort(() => Math.random() - 0.5).slice(0, 10);
+            quizQuestions = shuffled.map(word => {
+                const distractors = [...new Set(pool.filter(v => v !== word.vn))]
+                    .sort(() => Math.random() - 0.5).slice(0, 3);
+                const options = [word.vn, ...distractors].sort(() => Math.random() - 0.5);
+                return { jp: word.jp, kanji: word.kanji, correct: word.vn, options };
+            });
+            quizIndex = 0;
+            quizScore = 0;
+            renderQuizQuestion();
+        }
+
+        function renderQuizQuestion() {
+            const box = document.getElementById('quiz-container');
+            if (quizIndex >= quizQuestions.length) {
+                box.innerHTML = `
+                    <p class="text-5xl mb-3">🎉</p>
+                    <h3 class="text-2xl font-extrabold text-slate-700 mb-2">Hoàn thành!</h3>
+                    <p class="text-slate-500 font-bold mb-4">Điểm: ${quizScore}/${quizQuestions.length}</p>
+                    <div class="flex gap-3">
+                        <button onclick="renderQuizStart()" class="py-3 px-6 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold transition-all">↩️ Đổi bài học</button>
+                        <button onclick="startQuiz()" class="py-3 px-6 bg-pink-400 hover:bg-pink-500 text-white rounded-2xl font-extrabold shadow-md shadow-pink-200 active:scale-95 transition-all">🔁 Làm lại</button>
+                    </div>`;
+                return;
+            }
+            const q = quizQuestions[quizIndex];
+            box.innerHTML = `
+                <span class="text-xs font-bold text-pink-400 bg-pink-100 px-3 py-1 rounded-full mb-4">Câu ${quizIndex + 1}/${quizQuestions.length}</span>
+                <h2 class="text-5xl font-extrabold text-slate-700 mb-6">${q.jp || q.kanji}</h2>
+                <div id="quiz-options" class="grid grid-cols-1 gap-3 w-full"></div>`;
+            const optsDiv = document.getElementById('quiz-options');
+            q.options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.textContent = opt;
+                btn.className = "py-3 px-4 bg-slate-50 hover:bg-pink-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-700 transition-all active:scale-95";
+                btn.onclick = () => selectQuizAnswer(opt, q.correct, btn, optsDiv);
+                optsDiv.appendChild(btn);
+            });
+        }
+
+        function selectQuizAnswer(chosen, correct, btn, optsDiv) {
+            [...optsDiv.children].forEach(b => b.onclick = null);
+            if (chosen === correct) {
+                quizScore++;
+                btn.className = "py-3 px-4 bg-emerald-100 border-2 border-emerald-300 rounded-2xl font-bold text-emerald-700";
+            } else {
+                btn.className = "py-3 px-4 bg-rose-100 border-2 border-rose-300 rounded-2xl font-bold text-rose-700";
+                [...optsDiv.children].find(b => b.textContent === correct).className =
+                    "py-3 px-4 bg-emerald-100 border-2 border-emerald-300 rounded-2xl font-bold text-emerald-700";
+            }
+            setTimeout(() => { quizIndex++; renderQuizQuestion(); }, 900);
         }
 
         function showToast(message, isError = false) {
