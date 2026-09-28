@@ -703,22 +703,35 @@
             if (lessonSel) quizLessonName = lessonSel.value;
             if (statusSel) quizStatusFilter = statusSel.value;
 
-            let source = quizScope === 'all'
-                ? [].concat(...Object.values(allLessons))
-                : (allLessons[quizLessonName] || []);
-            if (quizStatusFilter === 'unknown') source = source.filter(c => c.status !== 'known');
-            else if (quizStatusFilter === 'known') source = source.filter(c => c.status === 'known');
+            // Mỗi từ được gắn với bài học của nó để lấy đáp án nhiễu từ CÙNG BÀI
+            const lessonNames = quizScope === 'all' ? Object.keys(allLessons) : [quizLessonName];
+            let source = [];
+            lessonNames.forEach(name => {
+                (allLessons[name] || []).forEach(w => source.push({ word: w, lesson: name }));
+            });
+            if (quizStatusFilter === 'unknown') source = source.filter(x => x.word.status !== 'known');
+            else if (quizStatusFilter === 'known') source = source.filter(x => x.word.status === 'known');
 
             if (source.length < 2) {
                 showToast("Không đủ từ phù hợp để kiểm tra (cần ít nhất 2 từ)!", true);
                 return;
             }
-            const pool = [].concat(...Object.values(allLessons)).map(c => c.vn).filter(Boolean);
-            const shuffled = [...source].sort(() => Math.random() - 0.5).slice(0, 10);
-            quizQuestions = shuffled.map(word => {
-                const distractors = [...new Set(pool.filter(v => v !== word.vn))]
-                    .sort(() => Math.random() - 0.5).slice(0, 3);
-                const options = [word.vn, ...distractors].sort(() => Math.random() - 0.5);
+            const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
+            const otherLessonsPool = lessonName => [].concat(
+                ...Object.entries(allLessons).filter(([k]) => k !== lessonName).map(([, v]) => v)
+            ).map(c => c.vn).filter(Boolean);
+
+            quizQuestions = shuffle(source).map(({ word, lesson }) => {
+                // Ưu tiên lấy đáp án sai từ chính bài học đó (toàn bộ bài, không chỉ phần đã lọc)
+                const sameLesson = (allLessons[lesson] || []).map(c => c.vn).filter(v => v && v !== word.vn);
+                let distractors = shuffle([...new Set(sameLesson)]).slice(0, 3);
+                // Chỉ khi bài quá ít từ mới bổ sung từ bài khác
+                if (distractors.length < 3) {
+                    const extra = shuffle([...new Set(otherLessonsPool(lesson))])
+                        .filter(v => v !== word.vn && !distractors.includes(v));
+                    distractors = distractors.concat(extra).slice(0, 3);
+                }
+                const options = shuffle([word.vn, ...distractors]);
                 return { jp: word.jp, kanji: word.kanji, correct: word.vn, options };
             });
             quizIndex = 0;
